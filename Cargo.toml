@@ -1,0 +1,8 @@
+[package]
+name = "crctrunc"
+version = "0.1.0"
+authors = ["Adam Gashlin <agashlin@mozilla.com>"]
+edition = "2018"
+
+[dependencies]
+crc32fast = "1.2"
