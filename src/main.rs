@@ -57,8 +57,6 @@ Example: crctrunc omni.ja 326fbb3c 10000"
         })
         .collect();
 
-    println!("ok");
-
     // Build up zeroes going backward
     // Initialize with the last partial chunk
     let mut hasher = Hasher::new();
