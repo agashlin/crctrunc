@@ -3,6 +3,7 @@
 
 extern crate crc32fast;
 
+use std::cmp;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -32,33 +33,46 @@ Example: crctrunc omni.ja 326fbb3c 10000"
     assert!(in_len as usize as u64 == in_len);
     let in_len = in_len as usize;
 
+    let zeroes = vec![0; chunk_size];
+    let whole_chunk_count = in_len / chunk_size;
+
     let mut input = Vec::with_capacity(in_len);
     in_file.read_to_end(&mut input).expect("couldn't read file");
     assert!(input.len() == in_len);
     // remove mutability
     let input = input;
 
-    let whole_chunk_count = in_len / chunk_size;
+    // Compute partial hashes going forward
+    let hasher = Hasher::new();
+    // `hashes[i]` contains the crc after hashing chunk #i
+    let hashes: Vec<u32> = (0..whole_chunk_count)
+        .scan(hasher, |hasher, i| {
+            let chunk_start = i * chunk_size;
+            let chunk_end = chunk_start + chunk_size;
+            if chunk_end > in_len {
+                return None;
+            }
+            hasher.update(&input[chunk_start..chunk_end]);
+            Some(hasher.clone().finalize())
+        })
+        .collect();
 
-    let zero_chunk = vec![0; chunk_size];
-    let mut zeroes_hasher = Hasher::new();
-    let mut zeroes_len = in_len - whole_chunk_count * chunk_size;
-    zeroes_hasher.update(&zero_chunk[..zeroes_len]);
+    println!("ok");
 
-    for chunk_index in (0..=whole_chunk_count).rev() {
-        let i = chunk_index * chunk_size;
+    // Build up zeroes going backward
+    // Initialize with the last partial chunk
+    let mut hasher = Hasher::new();
+    hasher.update(&zeroes[..(in_len - whole_chunk_count * chunk_size)]);
 
-        assert_eq!(zeroes_len + i, in_len);
-        let mut hasher = Hasher::new();
-        hasher.update(&input[0..i]);
-        hasher.combine(&zeroes_hasher);
-        let crc = hasher.finalize();
+    for i in (0..whole_chunk_count).rev() {
+        // Everything past chunk #i is zero
+        let mut current = Hasher::new_with_initial(hashes[i]);
+        current.combine(&hasher);
 
-        if crc == target_crc {
-            println!("zeroed from {:x}", i);
+        if current.finalize() == target_crc {
+            println!("zeroed from {:x}", (i + 1) * chunk_size);
         }
 
-        zeroes_hasher.update(&zero_chunk);
-        zeroes_len += zero_chunk.len();
+        hasher.update(&zeroes);
     }
 }
