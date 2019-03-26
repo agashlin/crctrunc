@@ -3,7 +3,6 @@
 
 extern crate crc32fast;
 
-use std::cmp;
 use std::env;
 use std::fs::File;
 use std::io::Read;
